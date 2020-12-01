@@ -8,6 +8,8 @@ import { REGISTRY, stringToBytes32, delegateTypes } from 'ethr-did-resolver'
 const EC = require('elliptic').ec
 const secp256k1 = new EC('secp256k1')
 const { Secp256k1VerificationKey2018 } = delegateTypes
+const Web3 = require('web3')
+const EthereumTx = require('ethereumjs-tx').Transaction
 
 function configureProvider (conf = {}) {
   if (conf.provider) {
@@ -39,12 +41,20 @@ function attributeToHex (key, value) {
 
 export default class EthrDID {
   constructor (conf = {}) {
-    const provider = configureProvider(conf)
-    const eth = new Eth(provider)
     const registryAddress = conf.registry || REGISTRY
     const DidReg = new EthContract(eth)(DidRegistryContract)
     this.registry = DidReg.at(registryAddress)
     this.address = conf.address
+
+    this.web3 = new Web3.providers.HttpProvider(conf.providerUrl)
+    this.privateKey = conf.privateKey
+    this.chainId = conf.chainId
+    this.networkId = conf.networkId
+    this.registryInstance = this.web3.eth.Contract(
+      DidRegistryContract,
+      registryAddress
+    )
+
     if (!this.address) throw new Error('No address is set for EthrDid')
     this.did = `did:ethr:${this.address}`
     if (conf.signer) {
@@ -60,6 +70,74 @@ export default class EthrDID {
     const privateKey = kp.getPrivate('hex')
     const address = toEthereumAddress(publicKey)
     return { address, privateKey }
+  }
+
+  async getAccountNonce (address) {
+    return await this.web3.eth.getTransactionCount(address)
+  }
+
+  async estimateGas (method, from, ...params) {
+    return await method(...params).estimateGas({ from })
+  }
+
+  async getGasPrice () {
+    return await this.web3.utils.eth.getGasPrice()
+  }
+
+  static toHex (value) {
+    return this.web3.utils.toHex(value)
+  }
+
+  static getData (method, ...params) {
+    return method(...params).encodeABI()
+  }
+
+  async singTransaction (nonce, to, value, data, gasLimit, gasPrice) {
+    const privateKey = Buffer.from(this.privateKey, 'hex')
+    const txParams = {
+      nonce: toHex(nonce),
+      gasPrice: toHex(gasPrice),
+      gasLimit: toHex(gasLimit),
+      to,
+      value: toHex(value),
+      data
+    }
+
+    const customCommon = Common.default.forCustomChain(
+      'mainnet',
+      {
+        name: 'my-network',
+        networkId: Number(this.networkId),
+        chainId: Number(this.chainId)
+      },
+      'petersburg'
+    )
+
+    const tx = new EthereumTx(txParams, { common: customCommon })
+    tx.sign(privateKey)
+
+    return tx.serialize()
+  }
+
+  async signAndSendTxRoot (from, contractAddress, method, value, ...args) {
+    const gasPrice = await this.getGasPrice()
+    const gasLimit = await this.estimateGas(method, from, ...args)
+    const inputData = this.getData(method, ...args)
+    const nonce = await this.getAccountNonce(from)
+    const methodRawTransaction = await signTransaction(
+      nonce,
+      contractAddress,
+      value,
+      inputData,
+      gasLimit,
+      gasPrice
+    )
+
+    return await sendRawTransaction(
+      providerOptions,
+      methodRawTransaction,
+      waitForReceipt
+    )
   }
 
   async lookupOwner (cache = true) {
@@ -80,14 +158,28 @@ export default class EthrDID {
   async addDelegate (delegate, options = {}) {
     const delegateType = options.delegateType || Secp256k1VerificationKey2018
     const expiresIn = options.expiresIn || 86400
-    const owner = await this.lookupOwner()
-    return this.registry.addDelegate(
+    const from = await this.lookupOwner()
+    const method = this.registryInstance.methods.addDelegate
+    const to = this.registry
+
+    return await this.signAndSendTxRoot(
+      from,
+      to,
+      method,
+      0x0,
       this.address,
       delegateType,
       delegate,
-      expiresIn,
-      { from: owner }
+      expiresIn
     )
+
+    // return this.registry.addDelegate(
+    //   this.address,
+    //   delegateType,
+    //   delegate,
+    //   expiresIn,
+    //   { from: owner }
+    // )
   }
 
   async revokeDelegate (delegate, delegateType = Secp256k1VerificationKey2018) {
