@@ -10,6 +10,7 @@ const secp256k1 = new EC('secp256k1')
 const { Secp256k1VerificationKey2018 } = delegateTypes
 const Web3 = require('web3')
 const EthereumTx = require('ethereumjs-tx').Transaction
+const Common = require('ethereumjs-common')
 
 function configureProvider (conf = {}) {
   if (conf.provider) {
@@ -48,7 +49,8 @@ export default class EthrDID {
     this.registry = DidReg.at(registryAddress)
     this.address = conf.address
 
-    this.web3 = new Web3.providers.HttpProvider(conf.providerUrl)
+    this.web3Provider = new Web3.providers.HttpProvider(conf.providerUrl)
+    this.web3 = new Web3(this.web3Provider)
     this.privateKey = conf.privateKey
     this.chainId = conf.chainId
     this.networkId = conf.networkId
@@ -66,7 +68,7 @@ export default class EthrDID {
     }
   }
 
-  static createKeyPair () {
+  async createKeyPair () {
     const kp = secp256k1.genKeyPair()
     const publicKey = kp.getPublic('hex')
     const privateKey = kp.getPrivate('hex')
@@ -86,22 +88,22 @@ export default class EthrDID {
     return await this.web3.utils.eth.getGasPrice()
   }
 
-  static toHex (value) {
+  async toHex (value) {
     return this.web3.utils.toHex(value)
   }
 
-  static getData (method, ...params) {
+  async getData (method, ...params) {
     return method(...params).encodeABI()
   }
 
-  async singTransaction (nonce, to, value, data, gasLimit, gasPrice) {
+  async signTransaction (nonce, to, value, data, gasLimit, gasPrice) {
     const privateKey = Buffer.from(this.privateKey, 'hex')
     const txParams = {
-      nonce: toHex(nonce),
-      gasPrice: toHex(gasPrice),
-      gasLimit: toHex(gasLimit),
+      nonce: await this.toHex(nonce),
+      gasPrice: await this.toHex(gasPrice),
+      gasLimit: await this.toHex(gasLimit),
       to,
-      value: toHex(value),
+      value: await this.toHex(value),
       data
     }
 
@@ -124,9 +126,9 @@ export default class EthrDID {
   async signAndSendTxRoot (from, contractAddress, method, value, ...args) {
     const gasPrice = await this.getGasPrice()
     const gasLimit = await this.estimateGas(method, from, ...args)
-    const inputData = this.getData(method, ...args)
+    const inputData = await this.getData(method, ...args)
     const nonce = await this.getAccountNonce(from)
-    const methodRawTransaction = await signTransaction(
+    const methodRawTransaction = await this.signTransaction(
       nonce,
       contractAddress,
       value,
