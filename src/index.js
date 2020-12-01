@@ -41,6 +41,8 @@ function attributeToHex (key, value) {
 
 export default class EthrDID {
   constructor (conf = {}) {
+    const provider = configureProvider(conf)
+    const eth = new Eth(provider);
     const registryAddress = conf.registry || REGISTRY
     const DidReg = new EthContract(eth)(DidRegistryContract)
     this.registry = DidReg.at(registryAddress)
