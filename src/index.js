@@ -142,7 +142,7 @@ class EthrDID {
       gasPrice
     )
 
-    const res = await this.sendRawTransaction(methodRawTransaction)
+    return await this.sendRawTransaction(methodRawTransaction)
   }
 
   async lookupOwner (cache = true) {
