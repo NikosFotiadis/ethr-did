@@ -185,18 +185,22 @@ class EthrDID {
     })
   }
 
-  async setAttribute (key, value, expiresIn = 86400, gasLimit) {
-    const owner = await this.lookupOwner()
-    return this.registry.setAttribute(
+
+  async setAttribute(key, value, expiresIn = 86400, gasLimit) {
+    const from = await this.lookupOwner();
+    const method = this.registryInstance.methods.setAttribute;
+    const to = this.registryAddress;
+
+    return await this.signAndSendTxRoot(
+      from,
+      to,
+      method,
+      0x0,
       this.address,
       stringToBytes32(key),
       attributeToHex(key, value),
       expiresIn,
-      {
-        from: owner,
-        gas: gasLimit
-      }
-    )
+    );
   }
 
   async revokeAttribute (key, value, gasLimit) {
