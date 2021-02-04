@@ -1,10 +1,19 @@
-const HttpProvider =require( 'ethjs-provider-http')
-const Eth = require ('ethjs-query')
-const EthContract = require( 'ethjs-contract')
-const DidRegistryContract = require( 'ethr-did-resolver/contracts/ethr-did-registry.json')
-const { createJWT, verifyJWT, SimpleSigner, toEthereumAddress } =require( 'did-jwt')
-const { Buffer } = require( 'buffer')
-const { REGISTRY, stringToBytes32, delegateTypes } =require( 'ethr-did-resolver')
+const HttpProvider = require('ethjs-provider-http')
+const Eth = require('ethjs-query')
+const EthContract = require('ethjs-contract')
+const DidRegistryContract = require('ethr-did-resolver/contracts/ethr-did-registry.json')
+const {
+  createJWT,
+  verifyJWT,
+  SimpleSigner,
+  toEthereumAddress
+} = require('did-jwt')
+const { Buffer } = require('buffer')
+const {
+  REGISTRY,
+  stringToBytes32,
+  delegateTypes
+} = require('ethr-did-resolver')
 const EC = require('elliptic').ec
 const secp256k1 = new EC('secp256k1')
 const { Secp256k1VerificationKey2018 } = delegateTypes
@@ -98,7 +107,7 @@ class EthrDID {
   }
 
   async sendRawTransaction (transaction) {
-    return this.web3.eth.sendSignedTransaction(`${transaction.toString('hex')}`);
+    return this.web3.eth.sendSignedTransaction(`${transaction.toString('hex')}`)
   }
 
   async signTransaction (nonce, to, value, data, gasLimit, gasPrice) {
@@ -147,7 +156,9 @@ class EthrDID {
 
   async lookupOwner (cache = true) {
     if (cache && this.owner) return this.owner
-    return await this.registryInstance.methods.identityOwner(this.address).call()
+    return await this.registryInstance.methods
+      .identityOwner(this.address)
+      .call()
   }
 
   async changeOwner (newOwner) {
@@ -185,11 +196,10 @@ class EthrDID {
     })
   }
 
-
-  async setAttribute(key, value, expiresIn = 86400, gasLimit) {
-    const from = await this.lookupOwner();
-    const method = this.registryInstance.methods.setAttribute;
-    const to = this.registryAddress;
+  async setAttribute (key, value, expiresIn = 86400, gasLimit) {
+    const from = await this.lookupOwner()
+    const method = this.registryInstance.methods.setAttribute
+    const to = this.registryAddress
 
     return await this.signAndSendTxRoot(
       from,
@@ -199,8 +209,8 @@ class EthrDID {
       this.address,
       stringToBytes32(key),
       attributeToHex(key, value),
-      expiresIn,
-    );
+      expiresIn
+    )
   }
 
   async revokeAttribute (key, value, gasLimit) {
